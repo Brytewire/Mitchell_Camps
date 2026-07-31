@@ -17,6 +17,76 @@
   }, { threshold: 0.14 });
   revealEls.forEach(el => io.observe(el));
 
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Stats bar count-up: numbers count from 0 to their real value the first
+  // time the stats bar enters view. Skipped (numbers just show as-is) for
+  // prefers-reduced-motion.
+  const statNums = document.querySelectorAll('.stats .num');
+  if (statNums.length && !prefersReducedMotion) {
+    const counters = Array.from(statNums).map((el) => {
+      const raw = el.textContent.trim();
+      const m = raw.match(/^(\d+)(\D*)$/);
+      if (!m) return null;
+      const digits = m[1].length;
+      const target = parseInt(m[1], 10);
+      const suffix = m[2] || '';
+      el.textContent = '0'.padStart(digits, '0') + suffix;
+      return { el, target, digits, suffix, raw };
+    }).filter(Boolean);
+
+    const statsSection = document.querySelector('.stats');
+    const statIO = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        counters.forEach(({ el, target, digits, suffix, raw }) => {
+          const duration = 1950;
+          const start = performance.now();
+          (function tick(now) {
+            const p = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - p, 3);
+            if (p < 1) {
+              el.textContent = String(Math.round(eased * target)).padStart(digits, '0') + suffix;
+              requestAnimationFrame(tick);
+            } else {
+              el.textContent = raw;
+            }
+          })(start);
+        });
+        statIO.unobserve(statsSection);
+      });
+    }, { threshold: 0.4 });
+    statIO.observe(statsSection);
+  }
+
+  // Offering headline typewriter: types out the "full-service camp" line
+  // the first time it enters view. Skipped for prefers-reduced-motion.
+  const typeTarget = document.querySelector('.offering .section-head h2');
+  if (typeTarget && !prefersReducedMotion) {
+    const fullText = typeTarget.textContent.trim();
+    typeTarget.textContent = '';
+    typeTarget.setAttribute('aria-label', fullText);
+    typeTarget.classList.add('typing');
+
+    const typeIO = new IntersectionObserver((entries) => {
+      entries.forEach((e) => {
+        if (!e.isIntersecting) return;
+        let i = 0;
+        (function typeChar() {
+          if (i <= fullText.length) {
+            typeTarget.textContent = fullText.slice(0, i);
+            i++;
+            setTimeout(typeChar, 26);
+          } else {
+            typeTarget.classList.remove('typing');
+          }
+        })();
+        typeIO.unobserve(typeTarget);
+      });
+    }, { threshold: 0.5 });
+    typeIO.observe(typeTarget);
+  }
+
   // Hero first-scroll reveal: on load the hero is a clear image with no
   // overlay/copy (see .hero-pending in style.css). The first wheel/touch/key
   // gesture is captured and replayed as a reveal animation instead of a
